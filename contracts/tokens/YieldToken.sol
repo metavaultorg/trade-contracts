@@ -7,9 +7,9 @@ import "../libraries/token/IERC20.sol";
 import "../libraries/token/SafeERC20.sol";
 
 import "./interfaces/IYieldTracker.sol";
-import "./interfaces/IBaseToken.sol";
+import "./interfaces/IYieldToken.sol";
 
-contract BaseToken is IERC20, IBaseToken {
+contract YieldToken is IERC20, IYieldToken {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -29,16 +29,16 @@ contract BaseToken is IERC20, IBaseToken {
     mapping(address => bool) public nonStakingAccounts;
     mapping(address => bool) public admins;
 
-    bool public inPrivateTransferMode;
-    mapping(address => bool) public isHandler;
+    bool public inWhitelistMode;
+    mapping(address => bool) public whitelistedHandlers;
 
     modifier onlyGov() {
-        require(msg.sender == gov, "BaseToken: forbidden");
+        require(msg.sender == gov, "YieldToken: forbidden");
         _;
     }
 
     modifier onlyAdmin() {
-        require(admins[msg.sender], "BaseToken: forbidden");
+        require(admins[msg.sender], "YieldToken: forbidden");
         _;
     }
 
@@ -50,6 +50,7 @@ contract BaseToken is IERC20, IBaseToken {
         name = _name;
         symbol = _symbol;
         gov = msg.sender;
+        admins[msg.sender] = true;
         _mint(msg.sender, _initialSupply);
     }
 
@@ -79,27 +80,27 @@ contract BaseToken is IERC20, IBaseToken {
         address _token,
         address _account,
         uint256 _amount
-    ) external override onlyGov {
+    ) external onlyGov {
         IERC20(_token).safeTransfer(_account, _amount);
     }
 
-    function setInPrivateTransferMode(bool _inPrivateTransferMode) external override onlyGov {
-        inPrivateTransferMode = _inPrivateTransferMode;
+    function setInWhitelistMode(bool _inWhitelistMode) external onlyGov {
+        inWhitelistMode = _inWhitelistMode;
     }
 
-    function setHandler(address _handler, bool _isActive) external onlyGov {
-        isHandler[_handler] = _isActive;
+    function setWhitelistedHandler(address _handler, bool _isWhitelisted) external onlyGov {
+        whitelistedHandlers[_handler] = _isWhitelisted;
     }
 
     function addNonStakingAccount(address _account) external onlyAdmin {
-        require(!nonStakingAccounts[_account], "BaseToken: _account already marked");
+        require(!nonStakingAccounts[_account], "YieldToken: _account already marked");
         _updateRewards(_account);
         nonStakingAccounts[_account] = true;
         nonStakingSupply = nonStakingSupply.add(balances[_account]);
     }
 
     function removeNonStakingAccount(address _account) external onlyAdmin {
-        require(nonStakingAccounts[_account], "BaseToken: _account not marked");
+        require(nonStakingAccounts[_account], "YieldToken: _account not marked");
         _updateRewards(_account);
         nonStakingAccounts[_account] = false;
         nonStakingSupply = nonStakingSupply.sub(balances[_account]);
@@ -153,18 +154,14 @@ contract BaseToken is IERC20, IBaseToken {
         address _recipient,
         uint256 _amount
     ) external override returns (bool) {
-        if (isHandler[msg.sender]) {
-            _transfer(_sender, _recipient, _amount);
-            return true;
-        }
-        uint256 nextAllowance = allowances[_sender][msg.sender].sub(_amount, "BaseToken: transfer amount exceeds allowance");
+        uint256 nextAllowance = allowances[_sender][msg.sender].sub(_amount, "YieldToken: transfer amount exceeds allowance");
         _approve(_sender, msg.sender, nextAllowance);
         _transfer(_sender, _recipient, _amount);
         return true;
     }
 
     function _mint(address _account, uint256 _amount) internal {
-        require(_account != address(0), "BaseToken: mint to the zero address");
+        require(_account != address(0), "YieldToken: mint to the zero address");
 
         _updateRewards(_account);
 
@@ -179,11 +176,11 @@ contract BaseToken is IERC20, IBaseToken {
     }
 
     function _burn(address _account, uint256 _amount) internal {
-        require(_account != address(0), "BaseToken: burn from the zero address");
+        require(_account != address(0), "YieldToken: burn from the zero address");
 
         _updateRewards(_account);
 
-        balances[_account] = balances[_account].sub(_amount, "BaseToken: burn amount exceeds balance");
+        balances[_account] = balances[_account].sub(_amount, "YieldToken: burn amount exceeds balance");
         totalSupply = totalSupply.sub(_amount);
 
         if (nonStakingAccounts[_account]) {
@@ -198,17 +195,17 @@ contract BaseToken is IERC20, IBaseToken {
         address _recipient,
         uint256 _amount
     ) private {
-        require(_sender != address(0), "BaseToken: transfer from the zero address");
-        require(_recipient != address(0), "BaseToken: transfer to the zero address");
+        require(_sender != address(0), "YieldToken: transfer from the zero address");
+        require(_recipient != address(0), "YieldToken: transfer to the zero address");
 
-        if (inPrivateTransferMode) {
-            require(isHandler[msg.sender], "BaseToken: msg.sender not whitelisted");
+        if (inWhitelistMode) {
+            require(whitelistedHandlers[msg.sender], "YieldToken: msg.sender not whitelisted");
         }
 
         _updateRewards(_sender);
         _updateRewards(_recipient);
 
-        balances[_sender] = balances[_sender].sub(_amount, "BaseToken: transfer amount exceeds balance");
+        balances[_sender] = balances[_sender].sub(_amount, "YieldToken: transfer amount exceeds balance");
         balances[_recipient] = balances[_recipient].add(_amount);
 
         if (nonStakingAccounts[_sender]) {
@@ -226,8 +223,8 @@ contract BaseToken is IERC20, IBaseToken {
         address _spender,
         uint256 _amount
     ) private {
-        require(_owner != address(0), "BaseToken: approve from the zero address");
-        require(_spender != address(0), "BaseToken: approve to the zero address");
+        require(_owner != address(0), "YieldToken: approve from the zero address");
+        require(_spender != address(0), "YieldToken: approve to the zero address");
 
         allowances[_owner][_spender] = _amount;
 
