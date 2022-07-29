@@ -7,21 +7,16 @@ import "../libraries/math/SafeMath.sol";
 
 import "../staking/interfaces/IVester.sol";
 import "../staking/interfaces/IRewardTracker.sol";
+import "../access/Governable.sol";
 
-contract EsMvxBatchSender {
+
+contract EsMvxBatchSender is Governable{
     using SafeMath for uint256;
 
-    address public admin;
     address public esMvx;
 
     constructor(address _esMvx) public {
-        admin = msg.sender;
         esMvx = _esMvx;
-    }
-
-    modifier onlyAdmin() {
-        require(msg.sender == admin, "EsMvxBatchSender: forbidden");
-        _;
     }
 
     function send(
@@ -29,7 +24,7 @@ contract EsMvxBatchSender {
         uint256 _minRatio,
         address[] memory _accounts,
         uint256[] memory _amounts
-    ) external onlyAdmin {
+    ) external onlyGov {
         IRewardTracker rewardTracker = IRewardTracker(_vester.rewardTracker());
 
         for (uint256 i = 0; i < _accounts.length; i++) {

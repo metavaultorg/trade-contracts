@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.6.12;
+pragma solidity >=0.6.12 <0.9.0;
 
 interface IOrderBook {
     function getSwapOrder(address _account, uint256 _orderIndex)
@@ -64,4 +64,12 @@ interface IOrderBook {
         uint256,
         address payable
     ) external;
+
+    function getShouldExecuteOrderList(
+        bool _returnFirst
+    ) external view returns (
+            bool ,
+            uint160[] memory); 
+
+
 }
