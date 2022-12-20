@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "../libraries/math/SafeMath.sol";
 import "../libraries/token/IERC20.sol";
 import "../libraries/token/SafeERC20.sol";
+import "../libraries/token/TransferHelper.sol";
 import "../libraries/utils/ReentrancyGuard.sol";
 import "../libraries/utils/Address.sol";
 
@@ -13,7 +15,9 @@ import "./interfaces/IVester.sol";
 import "../tokens/interfaces/IMintable.sol";
 import "../tokens/interfaces/IWETH.sol";
 import "../core/interfaces/IMvlpManager.sol";
+import "../core/interfaces/IVault.sol";
 import "../access/Governable.sol";
+import "../peripherals/interfaces/ISwapRouter.sol";
 
 contract RewardRouter is ReentrancyGuard, Governable {
     using SafeMath for uint256;
@@ -24,6 +28,11 @@ contract RewardRouter is ReentrancyGuard, Governable {
 
     address public weth;
 
+
+    ISwapRouter public immutable swapRouter;
+
+    address public vault;
+    address public usdc;
     address public mvx;
     address public esMvx;
     address public bnMvx;
@@ -54,12 +63,28 @@ contract RewardRouter is ReentrancyGuard, Governable {
         require(msg.sender == weth, "Router: invalid sender");
     }
 
-    function initialize(
+    uint24 public constant MVX_USDC_POOL_FEE = 10000;
+
+    constructor(address _swapRouter,
         address _weth,
         address _mvx,
         address _esMvx,
         address _bnMvx,
-        address _mvlp,
+        address _mvlp,       
+        address _usdc,
+        address _vault    
+    ) public{
+        swapRouter = ISwapRouter(_swapRouter);
+        weth = _weth;
+        mvx = _mvx;
+        esMvx = _esMvx;
+        bnMvx = _bnMvx;
+        mvlp = _mvlp;        
+        usdc = _usdc;
+        vault = _vault;
+    }
+
+    function initialize(
         address _stakedMvxTracker,
         address _bonusMvxTracker,
         address _feeMvxTracker,
@@ -72,14 +97,6 @@ contract RewardRouter is ReentrancyGuard, Governable {
         require(!isInitialized, "RewardRouter: already initialized");
         isInitialized = true;
 
-        weth = _weth;
-
-        mvx = _mvx;
-        esMvx = _esMvx;
-        bnMvx = _bnMvx;
-
-        mvlp = _mvlp;
-
         stakedMvxTracker = _stakedMvxTracker;
         bonusMvxTracker = _bonusMvxTracker;
         feeMvxTracker = _feeMvxTracker;
@@ -91,6 +108,7 @@ contract RewardRouter is ReentrancyGuard, Governable {
 
         mvxVester = _mvxVester;
         mvlpVester = _mvlpVester;
+
     }
 
     // to help users who accidentally send their tokens to this contract
@@ -151,10 +169,16 @@ contract RewardRouter is ReentrancyGuard, Governable {
         require(msg.value > 0, "RewardRouter: invalid msg.value");
 
         IWETH(weth).deposit{value: msg.value}();
-        IERC20(weth).approve(mvlpManager, msg.value);
+        return _mintAndStakeMvlpETH(msg.value,_minUsdm, _minMvlp);
+    }
+
+    function _mintAndStakeMvlpETH(uint256 _amount,uint256 _minUsdm, uint256 _minMvlp) private returns (uint256) {
+        require(_amount > 0, "RewardRouter: invalid _amount");
+
+        IERC20(weth).approve(mvlpManager, _amount);
 
         address account = msg.sender;
-        uint256 mvlpAmount = IMvlpManager(mvlpManager).addLiquidityForAccount(address(this), account, weth, msg.value, _minUsdm, _minMvlp);
+        uint256 mvlpAmount = IMvlpManager(mvlpManager).addLiquidityForAccount(address(this), account, weth, _amount, _minUsdm, _minMvlp);
 
         IRewardTracker(feeMvlpTracker).stakeForAccount(account, account, mvlp, mvlpAmount);
         IRewardTracker(stakedMvlpTracker).stakeForAccount(account, account, feeMvlpTracker, mvlpAmount);
@@ -242,8 +266,10 @@ contract RewardRouter is ReentrancyGuard, Governable {
         bool _shouldStakeEsMvx,
         bool _shouldStakeMultiplierPoints,
         bool _shouldClaimWeth,
-        bool _shouldConvertWethToEth
-    ) external nonReentrant {
+        bool _shouldConvertWethToEth,
+        bool _shouldAddIntoMVLP,
+        bool _shouldConvertMvxAndStake
+    ) external nonReentrant returns (uint256 amountOut) {
         address account = msg.sender;
 
         uint256 mvxAmount = 0;
@@ -276,19 +302,59 @@ contract RewardRouter is ReentrancyGuard, Governable {
         }
 
         if (_shouldClaimWeth) {
-            if (_shouldConvertWethToEth) {
+            if (_shouldConvertWethToEth || _shouldAddIntoMVLP || _shouldConvertMvxAndStake) {
                 uint256 weth0 = IRewardTracker(feeMvxTracker).claimForAccount(account, address(this));
                 uint256 weth1 = IRewardTracker(feeMvlpTracker).claimForAccount(account, address(this));
 
                 uint256 wethAmount = weth0.add(weth1);
-                IWETH(weth).withdraw(wethAmount);
+                
 
-                payable(account).sendValue(wethAmount);
+                if(_shouldAddIntoMVLP){
+                    amountOut = _mintAndStakeMvlpETH(wethAmount,0,0);
+                }else if(_shouldConvertMvxAndStake){
+                    //convert weth->usdc->mvx and stake
+
+                    IERC20(weth).safeTransfer(vault, wethAmount);
+
+                    //convert weth->usdc via vault
+                    uint256 usdcAmountOut = IVault(vault).swap(weth, usdc, address(this));
+
+                    //convert usdc->mvx via uniswap
+                     uint256 mvxAmountOut = _swapExactInputSingle(usdcAmountOut);
+
+                    if (mvxAmountOut > 0) {
+                        TransferHelper.safeApprove(mvx, stakedMvxTracker, mvxAmountOut);
+                        _stakeMvx(address(this), account, mvx, mvxAmountOut);
+                        amountOut = mvxAmountOut;
+                    }
+
+                }else{
+                    IWETH(weth).withdraw(wethAmount);
+                    payable(account).sendValue(wethAmount);
+                }
             } else {
                 IRewardTracker(feeMvxTracker).claimForAccount(account, account);
                 IRewardTracker(feeMvlpTracker).claimForAccount(account, account);
             }
         }
+    }
+
+    function _swapExactInputSingle(uint256 amountIn) private returns (uint256 amountOut) {
+        TransferHelper.safeApprove(usdc, address(swapRouter), amountIn);
+
+        ISwapRouter.ExactInputSingleParams memory params =
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: usdc,
+                tokenOut: mvx,
+                fee: MVX_USDC_POOL_FEE,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+
+        amountOut = swapRouter.exactInputSingle(params);
     }
 
     function batchCompoundForAccounts(address[] memory _accounts) external nonReentrant onlyGov {

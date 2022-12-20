@@ -21,7 +21,7 @@ contract MvlpManager is ReentrancyGuard, Governable, IMvlpManager {
     uint256 public constant MAX_COOLDOWN_DURATION = 48 hours;
 
     IVault public vault;
-    address public usdm;
+    address public override usdm;
     address public mvlp;
 
     uint256 public override cooldownDuration;
@@ -58,7 +58,7 @@ contract MvlpManager is ReentrancyGuard, Governable, IMvlpManager {
         isHandler[_handler] = _isActive;
     }
 
-    function setCooldownDuration(uint256 _cooldownDuration) external onlyGov {
+    function setCooldownDuration(uint256 _cooldownDuration) external override onlyGov {
         require(_cooldownDuration <= MAX_COOLDOWN_DURATION, "MvlpManager: invalid _cooldownDuration");
         cooldownDuration = _cooldownDuration;
     }

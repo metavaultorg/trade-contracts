@@ -3,7 +3,9 @@
 pragma solidity 0.6.12;
 
 interface IMvlpManager {
+    function usdm() external view returns (address);
     function cooldownDuration() external returns (uint256);
+    function setCooldownDuration(uint256 _cooldownDuration) external;
 
     function lastAddedAt(address _account) external returns (uint256);
 

@@ -16,10 +16,6 @@ interface IVaultPriceFeed {
         uint256 _adjustmentBps
     ) external;
 
-    function setUseV2Pricing(bool _useV2Pricing) external;
-
-    function setIsAmmEnabled(bool _isEnabled) external;
-
     function setIsSecondaryPriceEnabled(bool _isEnabled) external;
 
     function setSpreadBasisPoints(address _token, uint256 _spreadBasisPoints)
@@ -42,8 +38,6 @@ interface IVaultPriceFeed {
         bool _useSwapPricing
     ) external view returns (uint256);
 
-    function getAmmPrice(address _token) external view returns (uint256);
-
     function getPrimaryPrice(address _token, bool _maximise)
         external
         view
@@ -55,4 +49,8 @@ interface IVaultPriceFeed {
         uint256 _priceDecimals,
         bool _isStrictStable
     ) external;
+
+    function getLatestPrimaryPrice(address _token) external view returns (uint256);
+
+
 }

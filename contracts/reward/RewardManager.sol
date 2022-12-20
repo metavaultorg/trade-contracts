@@ -70,40 +70,40 @@ contract RewardManager is Governable {
         mvlpVester = _mvlpVester;
     }
 
-    function updateEsMvxHandlers() external onlyGov {
-        timelock.managedSetHandler(esMvx, rewardRouter, true);
+    // function updateEsMvxHandlers() external onlyGov {
+    //     timelock.managedSetHandler(esMvx, rewardRouter, true);
 
-        timelock.managedSetHandler(esMvx, stakedMvxDistributor, true);
-        timelock.managedSetHandler(esMvx, stakedMvlpDistributor, true);
+    //     timelock.managedSetHandler(esMvx, stakedMvxDistributor, true);
+    //     timelock.managedSetHandler(esMvx, stakedMvlpDistributor, true);
 
-        timelock.managedSetHandler(esMvx, stakedMvxTracker, true);
-        timelock.managedSetHandler(esMvx, stakedMvlpTracker, true);
+    //     timelock.managedSetHandler(esMvx, stakedMvxTracker, true);
+    //     timelock.managedSetHandler(esMvx, stakedMvlpTracker, true);
 
-        timelock.managedSetHandler(esMvx, mvxVester, true);
-        timelock.managedSetHandler(esMvx, mvlpVester, true);
-    }
+    //     timelock.managedSetHandler(esMvx, mvxVester, true);
+    //     timelock.managedSetHandler(esMvx, mvlpVester, true);
+    // }
 
-    function enableRewardRouter() external onlyGov {
-        timelock.managedSetHandler(mvlpManager, rewardRouter, true);
+    // function enableRewardRouter() external onlyGov {
+    //     timelock.managedSetHandler(mvlpManager, rewardRouter, true);
 
-        timelock.managedSetHandler(stakedMvxTracker, rewardRouter, true);
-        timelock.managedSetHandler(bonusMvxTracker, rewardRouter, true);
-        timelock.managedSetHandler(feeMvxTracker, rewardRouter, true);
+    //     timelock.managedSetHandler(stakedMvxTracker, rewardRouter, true);
+    //     timelock.managedSetHandler(bonusMvxTracker, rewardRouter, true);
+    //     timelock.managedSetHandler(feeMvxTracker, rewardRouter, true);
 
-        timelock.managedSetHandler(feeMvlpTracker, rewardRouter, true);
-        timelock.managedSetHandler(stakedMvlpTracker, rewardRouter, true);
+    //     timelock.managedSetHandler(feeMvlpTracker, rewardRouter, true);
+    //     timelock.managedSetHandler(stakedMvlpTracker, rewardRouter, true);
 
-        timelock.managedSetHandler(esMvx, rewardRouter, true);
+    //     timelock.managedSetHandler(esMvx, rewardRouter, true);
 
-        timelock.managedSetMinter(bnMvx, rewardRouter, true);
+    //     timelock.managedSetMinter(bnMvx, rewardRouter, true);
 
-        timelock.managedSetMinter(esMvx, mvxVester, true);
-        timelock.managedSetMinter(esMvx, mvlpVester, true);
+    //     timelock.managedSetMinter(esMvx, mvxVester, true);
+    //     timelock.managedSetMinter(esMvx, mvlpVester, true);
 
-        timelock.managedSetHandler(mvxVester, rewardRouter, true);
-        timelock.managedSetHandler(mvlpVester, rewardRouter, true);
+    //     timelock.managedSetHandler(mvxVester, rewardRouter, true);
+    //     timelock.managedSetHandler(mvlpVester, rewardRouter, true);
 
-        timelock.managedSetHandler(feeMvxTracker, mvxVester, true);
-        timelock.managedSetHandler(stakedMvlpTracker, mvlpVester, true);
-    }
+    //     timelock.managedSetHandler(feeMvxTracker, mvxVester, true);
+    //     timelock.managedSetHandler(stakedMvlpTracker, mvlpVester, true);
+    // }
 }
